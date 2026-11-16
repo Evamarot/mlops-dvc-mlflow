@@ -1,1 +1,5 @@
 .venv/
+mlruns
+mlflow.db
+model/
+__pycache__/
