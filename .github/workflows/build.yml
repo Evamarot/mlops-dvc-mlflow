@@ -1,0 +1,36 @@
+name: Build API image
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (fetches the latest model from DagsHub)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: mlops-api:latest
+          build-args: |
+            MLFLOW_TRACKING_URI=${{ vars.MLFLOW_TRACKING_URI }}
+            DAGSHUB_USERNAME=${{ vars.DAGSHUB_USERNAME }}
+            CACHEBUST=${{ github.run_id }}
+          secrets: |
+            dagshub_token=${{ secrets.DAGSHUB_TOKEN }}
+
+      - name: Smoke test the API
+        run: |
+          docker run -d --name api -p 8000:8000 mlops-api:latest
+          for i in $(seq 1 30); do curl -sf http://localhost:8000/docs > /dev/null && break || sleep 2; done
+          curl -sf -X POST http://localhost:8000/predict \
+            -H "Content-Type: application/json" \
+            -d "{\"features\": [$(python3 -c "print(','.join(['0.0']*64))")]}"
